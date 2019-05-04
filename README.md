@@ -12,7 +12,7 @@ Next, we selected the three features that we identified as the most significant.
 
 We used four models to classify the pixels as cloud or non-cloud, using the expert labels provided in the three images to train and test our models. We used LDA, QDA, logistic regression, and random forest. To evaluate model performance, we obtained cross validation and test accuracies. We combined our training and validation data from Method 1 and then applied 5-fold cross validation, where we used 4 folds to train the model and the hold out set as our validation data. Rather than obtaining average CV accuracy, we extracted the CV accuracies across each fold to determine any trends across the folds, for which none were observed. We ran each of the models trained on the k-1 folds on our test set to obtain test accuracies, which helped us to identify random forest as our best-performing model. Beyond CV and test accuracies, we compared ROC curves, Youden points, AUC values, and confusion matrices for each of the four methods. The Youden point was used to identify the maximum difference between the true positive and false positive rates. 
 
-## MODEL ANALYSIS
+## DIAGNOSTICS
 
 After selecting random forest as our classification model of choice, we ran diagnostic plots to further evaluate this choice of model. We ran the model with 12 different parameters for number of trees to show how the accuracy of the model would converge as the number of trees increased. Additionally, we made a plot of the first tree in the random forest model overlaying the classes of points on the two variables that were split on to see if the divisions represented a difference between the classes. 
 
