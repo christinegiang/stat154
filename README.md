@@ -1,4 +1,4 @@
-# stat154
+# stat154 project 2
 
 We used two methods of splitting the data, both of which accounted for the important assumption that the image data is non-i.i.d. In Method 1, we divided the data into grids such that there are ten grids on the y-coordinate axis and ten grids on the x-coordinate axis, producing a total of 100 grids. We randomly sampled 80% of the grids for our training data, 10% for our validation data, and the remaining 10% for our test data. By sampling grids rather than individual pixels, we account for the fact that the pixels are non-i.i.d. In Method 2, we arbitrarily assigned each of the three images to our training, validation, and test sets, which also helped preserve our non-i.i.d. assumption. 
 
