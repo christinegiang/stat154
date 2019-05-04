@@ -1,0 +1,1031 @@
+---
+title: "project2_code"
+author: "christine giang & jessica yu"
+date: "4/13/2019"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+##GITHUB LINK:  
+[https://github.com/christinegiang/stat154](https://github.com/christinegiang/stat154)
+
+```{r}
+library(caret)
+library(MASS)
+library(bmrm)
+library(MLmetrics)
+library(class)
+library(randomForest)
+library(ggplot2)
+library(GGally)
+library(ROCit)
+library(klaR)
+```
+
+# SECTION 1
+
+##part a)
+EDA
+```{r}
+image1 <- read.table("~/Documents/caL/2019/stat154/projects/project2/image_data/image1.txt", quote="\"", comment.char="")
+
+image2 <- read.table("~/Documents/caL/2019/stat154/projects/project2/image_data/image2.txt", quote="\"", comment.char="")
+
+image3 <- read.table("~/Documents/caL/2019/stat154/projects/project2/image_data/image3.txt", quote="\"", comment.char="")
+
+column_labels <- c('y_coordinate','x_coordinate','expert_label','NDAI','SD','CORR','ra_DF', 'ra_CF', 'ra_BF', 'ra_AF', 'ra_AN')
+
+colnames(image1) <- column_labels
+
+colnames(image2) <- column_labels
+
+colnames(image3) <- column_labels
+
+all_images <- rbind(image1, image2, image3)
+```
+
+##part b)
+
+```{r}
+ggplot() + geom_point(aes(x = all_images$x_coordinate, y = all_images$y_coordinate, col = all_images$expert_label)) + labs(x = "x-coordinate", y = "y-coordinate", title = "pixel location by label")
+
+ggplot() + geom_point(aes(x = image1$x_coordinate, y = image1$y_coordinate, col = image1$expert_label)) + labs(x = "x-coordinate", y = "y-coordinate", title = "image1 : pixel location by label")
+
+ggplot() + geom_point(aes(x = image2$x_coordinate, y = image2$y_coordinate, col = image2$expert_label)) + labs(x = "x-coordinate", y = "y-coordinate", title = "image2 : pixel location by label")
+
+ggplot() + geom_point(aes(x = image3$x_coordinate, y = image3$y_coordinate, col = image3$expert_label)) + labs(x = "x-coordinate", y = "y-coordinate", title = "image3 : pixel location by label")
+```
+
+##part c)
+
+```{r}
+pairs_plot <- ggpairs(image1[ ,-c(1,2,3)])
+```
+
+```{r}
+# cor_combined <- subset(cor(combined), select = expert_label)
+cor_image1 <- subset(cor(image1), select = expert_label)
+cor_image2 <- subset(cor(image2), select = expert_label)
+cor_image3 <- subset(cor(image3), select = expert_label)
+
+cor_matrix <- matrix(c(cor_image1, cor_image2, cor_image3), nrow = length(cor_image1), dimnames = list(rownames(cor_image1), c(paste0("image", 1:3))))
+
+cor_matrix
+```
+
+(ii) 
+```{r}
+ggplot(image1, aes(x=1:nrow(image1), y=NDAI, color = expert_label)) + 
+  geom_point() + labs(x = "index", title = "NDAI vs. label")
+
+ggplot(image1, aes(x=1:nrow(image1), y=SD, color = expert_label)) + 
+  geom_point() + labs(x = "index", title = "SD vs. label")
+
+ggplot(image1, aes(x=1:nrow(image1), y=CORR, color = expert_label)) + geom_point() + labs(x = "index", title = "CORR vs. label")
+```
+
+
+NDAI vs SD
+```{r}
+ggplot() + geom_point(aes(x = image1[,4], image1[,5], col = image1[,3]))
+```
+
+```{r}
+ggplot() + geom_point(aes(x = image1[,5], image1[,6], col = image1[,3]))
+
+ggplot() + geom_point(aes(x = image1[,6], image1[,7], col = image1[,3]))
+
+ggplot() + geom_point(aes(x = image1[,7], image1[,8], col = image1[,3]))
+
+ggplot() + geom_point(aes(x = image1[,8], image1[,9], col = image1[,3]))
+
+```
+
+
+#SECTION 2
+
+##DATA CLEANING
+
+##part a)
+
+###**SPLIT METHOD 1**
+
+
+```{r}
+train1 <- image1
+test1 <- image2
+valid1 <- image3
+```
+
+###**SPLIT METHOD 2**
+
+```{r}
+# 400 x 400
+set.seed(12345)
+
+area <- 400 * 400
+
+# training, test, validation sample sizes
+grid_train_n <- 0.8 * area
+grid_valid_n <- 0.1 * area
+grid_test_n <- 0.1 * area
+
+# training grids
+grid_training <- sample(seq(area), grid_train_n)
+
+# select validation grids from grids not selected for training
+remaining_grids <- which(!(seq(area) %in% grid_training))
+grid_valid <- sample(remaining_grids, grid_valid_n)                     
+
+# select test grids from the remaining grids not in training or validation
+grid_test <- which(!(seq(area) %in% c(grid_training, grid_valid)))
+```
+
+```{r}
+set.seed(999)
+# sample has argument replace = F by default. sampling without replacement
+grids1 <- sample(seq(100), 100)
+grids2 <- sample(seq(100), 100)
+grids3 <- sample(seq(100), 100)
+
+grids1_train <- grids1[1:80]
+grids2_train <- grids2[1:80]
+grids3_train <- grids3[1:80]
+
+grids1_valid <- grids1[81:90]
+grids2_valid <- grids2[81:90]
+grids3_valid <- grids3[81:90]
+
+grids1_test <- grids1[91:100]
+grids2_test <- grids2[91:100]
+grids3_test <- grids3[91:100]
+```
+
+```{r}
+start <- seq(1,400, 40)
+end <- seq(40,400,40)
+```
+
+```{r}
+#IMAGE 1 MAPPING
+# mapping image 1 x values to a grid number
+image1_x_coded <- rep(0,nrow(image1))
+
+for (n in 1:nrow(image1)) {
+  
+  x_coord <- image1$x_coordinate[n] 
+  
+  for (i in 1:length(start)) {
+    if(start[i] <= x_coord & x_coord <= end[i]) {
+      image1_x_coded[n] <- i
+    }
+  }
+}
+
+# mapping image 1 y values to a grid number
+image1_y_coded <- rep(0,nrow(image1))
+
+for (n in 1:nrow(image1)) {
+  
+  y_coord <- image1$y_coordinate[n] 
+  
+  for (i in 1:length(start)) {
+    if(start[i] <= y_coord & y_coord <= end[i]) {
+      image1_y_coded[n] <- i
+    }
+  }
+}
+
+image1$x_coord_map <- image1_x_coded
+image1$y_coord_map <- image1_y_coded
+```
+
+```{r}
+#IMAGE 2 MAPPING
+# mapping image 2 x values to a grid number
+image2_x_coded <- rep(0,nrow(image2))
+
+for (n in 1:nrow(image2)) {
+  
+  x_coord <- image2$x_coordinate[n] 
+  
+  for (i in 1:length(start)) {
+    if(start[i] <= x_coord & x_coord <= end[i]) {
+      image2_x_coded[n] <- i
+    }
+  }
+}
+
+# mapping image 1 y values to a grid number
+image2_y_coded <- rep(0,nrow(image2))
+
+for (n in 1:nrow(image2)) {
+  
+  y_coord <- image2$y_coordinate[n] 
+  
+  for (i in 1:length(start)) {
+    if(start[i] <= y_coord & y_coord <= end[i]) {
+      image2_y_coded[n] <- i
+    }
+  }
+}
+
+image2$x_coord_map <- image2_x_coded
+image2$y_coord_map <- image2_y_coded
+```
+
+```{r}
+#IMAGE 3 MAPPING
+# mapping image 2 x values to a grid number
+image3_x_coded <- rep(0,nrow(image3))
+
+for (n in 1:nrow(image3)) {
+  
+  x_coord <- image3$x_coordinate[n] 
+  
+  for (i in 1:length(start)) {
+    if(start[i] <= x_coord & x_coord <= end[i]) {
+      image3_x_coded[n] <- i
+    }
+  }
+}
+
+# mapping image 1 y values to a grid number
+image3_y_coded <- rep(0,nrow(image3))
+
+for (n in 1:nrow(image3)) {
+  
+  y_coord <- image3$y_coordinate[n] 
+  
+  for (i in 1:length(start)) {
+    if(start[i] <= y_coord & y_coord <= end[i]) {
+      image3_y_coded[n] <- i
+    }
+  }
+}
+
+image3$x_coord_map <- image3_x_coded
+image3$y_coord_map <- image3_y_coded
+```
+
+```{r}
+grid_matrix <- matrix(1:100, nrow = 10, ncol = 10, byrow = T)
+```
+
+```{r}
+# IMAGE 1 assign each row (pixel) to a grid ranging from 1 to 100
+image1_grids <- rep(0, nrow(image1))
+
+for (n in 1:nrow(image1)) {
+  image1_grids[n] <- grid_matrix[image1$x_coord_map[n], image1$y_coord_map[n]]
+}
+
+image1$grid <- image1_grids
+```
+
+```{r}
+# IMAGE 2 assign each row (pixel) to a grid ranging from 1 to 100
+image2_grids <- rep(0, nrow(image2))
+
+for (n in 1:nrow(image2)) {
+  image2_grids[n] <- grid_matrix[image2$x_coord_map[n], image2$y_coord_map[n]]
+}
+
+image2$grid <- image2_grids
+```
+
+```{r}
+# IMAGE 3 assign each row (pixel) to a grid ranging from 1 to 100
+image3_grids <- rep(0, nrow(image3))
+
+for (n in 1:nrow(image3)) {
+  image3_grids[n] <- grid_matrix[image3$x_coord_map[n], image3$y_coord_map[n]]
+}
+
+image3$grid <- image3_grids
+```
+
+
+```{r}
+grids1_train <- grids1[1:80]
+grids2_train <- grids2[1:80]
+grids3_train <- grids3[1:80]
+
+grids1_valid <- grids1[81:90]
+grids2_valid <- grids2[81:90]
+grids3_valid <- grids3[81:90]
+
+grids1_test <- grids1[91:100]
+grids2_test <- grids2[91:100]
+grids3_test <- grids3[91:100]
+```
+
+```{r}
+image1_train <- image1[which(image1$grid %in% grids1_train), ]
+image2_train <- image2[which(image2$grid %in% grids2_train), ]
+image3_train <- image3[which(image3$grid %in% grids3_train), ]
+
+grids_train <- rbind(image1_train, image2_train, image3_train)
+```
+
+```{r}
+image1_valid <- image1[which(image1$grid %in% grids1_valid), ]
+image2_valid <- image2[which(image2$grid %in% grids2_valid), ]
+image3_valid <- image3[which(image3$grid %in% grids3_valid), ]
+
+grids_valid <- rbind(image1_valid, image2_valid, image3_valid)
+```
+
+```{r}
+image1_test <- image1[which(image1$grid %in% grids1_test), ]
+image2_test <- image2[which(image2$grid %in% grids2_test), ]
+image3_test <- image3[which(image3$grid %in% grids3_test), ]
+
+grids_test <- rbind(image1_test, image2_test, image3_test)
+```
+
+##part b)  
+
+```{r}
+trivial_classifier <- function(dataset) {
+  preds <- rep(-1, nrow(dataset))
+  return(preds)
+}
+
+pred_valid <- trivial_classifier(grids_valid)
+pred_test <- trivial_classifier(grids_test)
+
+valid_acc <- sum(pred_valid == grids_valid$expert_label)/ nrow(grids_valid)
+test_acc <- sum(pred_test == grids_test$expert_label) / nrow(grids_test)
+
+valid_acc
+test_acc
+```
+
+##part c)   
+
+##FEATURE SELECTION
+
+```{r}
+binary1 <- image1[image1$expert_label == 1 | image1$expert_label == -1, ]
+binary2 <- image2[image2$expert_label == 1 | image2$expert_label == -1, ]
+binary3 <- image3[image3$expert_label == 1 | image3$expert_label == -1, ]
+
+binary1$expert_label[binary1$expert_label == -1] <- 0
+binary2$expert_label[binary2$expert_label == -1] <- 0
+binary3$expert_label[binary3$expert_label == -1] <- 0
+
+all_binary <- all_images[all_images$expert_label == 1 | all_images$expert_label == -1, ]
+
+all_binary$expert_label[all_binary$expert_label == -1] <- 0
+
+# cor_combined <- subset(cor(combined), select = expert_label)
+cor_binary1 <- subset(cor(binary1[,c(1:11)]), select = expert_label)
+cor_binary2 <- subset(cor(binary2[,c(1:11)]), select = expert_label)
+cor_binary3 <- subset(cor(binary3[,c(1:11)]), select = expert_label)
+cor_all_binary <- subset(cor(all_binary[,c(1:11)]), select = expert_label)
+
+cor_matrix <- matrix(c(cor_binary1, cor_binary2, cor_binary3, cor_all_binary), nrow = length(cor_binary1), dimnames = list(rownames(cor_binary1), c(paste0("image", 1:3), "all_images")))
+
+cor_matrix
+```
+
+```{r}
+par(mfrow = c(2,2))
+
+plot(c(1:nrow(binary1)), binary1$NDAI, col = ifelse(binary1$expert_label == 1, "turquoise1", "purple4"), main = "NDAI vs. label", xlab = "index", ylab = "NDAI")
+
+plot(c(1:nrow(binary1)), binary1$SD, col = ifelse(binary1$expert_label == 1, "slateblue4", "midnight blue"), main = "SD vs. label", xlab = "index", ylab = "SD")
+
+plot(c(1:nrow(binary1)), binary1$CORR, col = ifelse(binary1$expert_label == 1, "salmon4", "medium purple"), main = "CORR vs. label", xlab = "index", ylab = "CORR")
+
+plot(c(1:nrow(binary1)), binary1$ra_DF, col = ifelse(binary1$expert_label == 1, "palevioletred", "palegoldenrod"), main = "ra_DF vs. label", xlab = "index", ylab = "ra_DF")
+
+plot(c(1:nrow(binary1)), binary1$ra_CF, col = ifelse(binary1$expert_label == 1, "slate blue", "grey58"), main = "ra_CF vs. label", xlab = "index", ylab = "ra_CF")
+
+plot(c(1:nrow(binary1)), binary1$ra_BF, col = ifelse(binary1$expert_label == 1, "plum4", "hot pink4"), main = "ra_BF vs. label", xlab = "index", ylab = "ra_BF")
+
+plot(c(1:nrow(binary1)), binary1$ra_AF, col = ifelse(binary1$expert_label == 1, "blue violet", "powder blue"), main = "ra_AF vs. label", xlab = "index", ylab = "ra_AF")
+
+plot(c(1:nrow(binary1)), binary1$ra_AN, col = ifelse(binary1$expert_label == 1, "magenta4", "slate grey"), main = "ra_AN vs. label", xlab = "index", ylab = "ra_AN")
+```
+
+
+##part d)    
+
+```{r}
+accuracy_loss_fcn <- function(preds, real){
+  correct = sum(preds == real)
+  return(correct/length(preds))
+}
+
+# LOAD CV GENERIC FUNCTION FROM WORKING DIRECTORY
+source("CVgeneric.R")
+
+# test
+CVgeneric(lda, image1, image1$expert_label, image2, 5, accuracy_loss_fcn)
+
+```
+
+
+#SECTION 3   
+
+##**MODEL SELECTION**  
+1. logistic regression  
+2. lda  
+3. qda  
+4. random forest   
+  
+  
+##part a)   
+
+###**TUNING PARAMETERS:**  
+The default parameters for random forest were too slow to run, so we decided to tune them slightly. nodesize = 19, ntree = 300
+
+```{r}
+set.seed(999)
+
+merged_train <- rbind(grids_train, grids_valid)
+
+# removed all nonlabeled and then relabeled nonclouds as zero instead of -1 for LR.
+binary_train <- grids_train[grids_train$expert_label == 1 | grids_train$expert_label == -1, ]
+binary_train$expert_label[binary_train$expert_label == -1] <- 0
+
+binary_merged <- merged_train[merged_train$expert_label == 1 | merged_train$expert_label == -1, ]
+binary_merged$expert_label[binary_merged$expert_label == -1] <- 0
+
+binary_test <- grids_test[-which(grids_test$expert_label == 0), ]
+
+binary_test[binary_test$expert_label == -1, ]$expert_label <- 0
+
+# logistic regression
+
+lr_model <- glm(factor(expert_label)~ NDAI + SD + CORR, data = binary_train, binomial)
+
+probs_lr <- predict(lr_model, binary_test, type = "response")
+
+preds_lr <- ifelse(probs_lr > 0.5, 1, 0)
+
+lr_cv <- CVgeneric(glm, binary_merged, binary_merged$expert_label, binary_test, 5, accuracy_loss_fcn)
+
+test_acc_lr <- sum(preds_lr == binary_test$expert_label) / length(preds_lr)
+
+
+# LDA
+
+lda_model <- lda(expert_label~ NDAI + SD + CORR, data = binary_train)
+
+preds_lda <- predict(lda_model, binary_test)
+
+lda_cv <- CVgeneric(lda, binary_merged, binary_merged$expert_label, binary_test, 5, accuracy_loss_fcn)
+
+test_acc_lda <- sum(preds_lda$class == binary_test$expert_label) / length(preds_lda$class)
+
+
+# QDA
+
+qda_model <- qda(expert_label~ NDAI + SD + CORR, data = binary_train)
+
+preds_qda <- predict(qda_model, binary_test, type = "reponse")
+
+qda_cv <- CVgeneric(qda, binary_merged, binary_merged$expert_label, binary_test, 5, accuracy_loss_fcn)
+
+test_acc_qda <- sum(preds_qda$class == binary_test$expert_label) / length(preds_qda$class)
+
+
+# RANDOM FOREST
+
+rf_model <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = binary_train, ntree = 300, nodesize = 19)
+
+probs_rf <- predict(rf_model, binary_test, type = "prob")
+
+preds_rf <- predict(rf_model, binary_test)
+
+rf_cv <- CVgeneric(randomForest, binary_merged, binary_merged$expert_label, binary_test, 5, accuracy_loss_fcn)
+
+test_acc_rf <- sum(preds_rf == binary_test$expert_label) / nrow(binary_test)
+```
+
+
+```{r}
+# combine train1 and valid1
+split1_train <- rbind(train1, valid1)
+split1_train <- split1_train[split1_train$expert_label == 1 | split1_train$expert_label == -1, ]
+split1_train$expert_label[split1_train$expert_label == -1] <- 0
+  
+split1_test <- test1[test1$expert_label == 1 | test1$expert_label == -1, ]
+split1_test$expert_label[split1_test$expert_label == -1] <- 0
+
+lr_cv2 <- CVgeneric(glm, split1_train, split1_train$expert_label, split1_test, 5, accuracy_loss_fcn)
+  
+lda_cv2 <- CVgeneric(lda, split1_train, split1_train$expert_label, split1_test, 5, accuracy_loss_fcn)
+
+qda_cv2 <- CVgeneric(qda, split1_train, split1_train$expert_label, split1_test, 5, accuracy_loss_fcn)
+
+rf_cv2 <- CVgeneric(randomForest, split1_train, split1_train$expert_label, split1_test, 5, accuracy_loss_fcn)
+```
+
+
+##**LOGISTIC REGRESSION**   
+  
+**SPLIT METHOD 1**  
+CV ACCURACIES: 0.8366755 0.8401763 0.8417123 0.8394027 0.8369932  
+TEST ACCURACIES: 0.8987316 0.8983907 0.8976847 0.8996445 0.8971856 
+  
+**SPLIT METHOD 2** (GRIDS)  
+CV ACCURACIES: 0.8741831 0.8737599 0.8702989 0.8730775 0.8726543  
+TEST ACCURACIES: 0.8510541 0.8514530 0.8515100 0.8512251 0.8513390 
+
+##**LDA**  
+  
+**SPLIT METHOD 1**  
+CV ACCURACIES: 0.8702696 0.8678526 0.8706219 0.8679560 0.8703093  
+TEST ACCURACIES: 0.9361762 0.9358353 0.9355797 0.9362005 0.9356040   
+  
+**SPLIT METHOD 2** (GRIDS)  
+  
+CV ACCURACIES: 0.8970160 0.8968033 0.8929218 0.8964096 0.8954358  
+TEST ACCURACIES: 0.9049573 0.9050712 0.9052991 0.9046154 0.9051852  
+  
+##**QDA**  
+  
+**SPLIT METHOD 1**  
+CV ACCURACIES: 0.8610571 0.8589581 0.8600588 0.8608078 0.8583171  
+TEST ACCURACIES: 0.9500170 0.9496640 0.9499562 0.9504431 0.9496397  
+  
+**SPLIT METHOD 2** (GRIDS)  
+CV ACCURACIES: 0.8958087 0.8952811 0.8907698 0.8952548 0.8934674   
+TEST ACCURACIES: .9022792 0.9027350 0.9029630 0.9026211 0.9025071  
+     
+##**RANDOM FOREST**   
+   
+**SPLIT METHOD 1**    
+CV ACCURACIES: 0.9027916 0.9040661 0.9074736 0.9037767 0.9039034   
+TEST ACCURACIES: 0.9366874 0.9374057 0.9362614 0.9347154 0.9373326  
+  
+**SPLIT METHOD 2** (GRIDS)  
+CV ACCURACIES: 0.9173031 0.9203979 0.9168045 0.9174322 0.9177974  
+TEST ACCURACIES: 0.9463248 0.9475783 0.9467806 0.9487179 0.9463248  
+   
+      
+##part b)   
+
+```{r}
+roc_lr <- rocit(score = probs_lr, class = binary_test$expert_label)
+
+roc_lda <- rocit(score = as.numeric(preds_lda$posterior[,2]), class = binary_test$expert_label)
+
+# plots true&false positive rates, so used the posterior column for class 1 (positive)
+roc_qda <- rocit(score = as.numeric(preds_qda$posterior[ ,2]), class = binary_test$expert_label)
+
+roc_rf <- rocit(score = probs_rf[ ,2], class = binary_test$expert_label)
+
+opt_y <- roc_lr$FPR[roc_lr$TPR - roc_lr$FPR== max(roc_lr$TPR - roc_lr$FPR)]
+opt_x <- roc_lr$TPR[roc_lr$TPR - roc_lr$FPR== max(roc_lr$TPR - roc_lr$FPR)]
+
+plot(roc_lr, main = "ROC Curve: Logistic Regression")
+abline(v = opt_y, col = "red")
+abline(h = opt_x, col = "red" )
+
+opt_y2 <- roc_lda$FPR[roc_lda$TPR - roc_lda$FPR== max(roc_lda$TPR - roc_lda$FPR)]
+opt_x2 <- roc_lda$TPR[roc_lda$TPR - roc_lda$FPR== max(roc_lda$TPR - roc_lda$FPR)]
+
+plot(roc_lda, main = "ROC Curve: LDA")
+abline(v = opt_y2, col = "red")
+abline(h = opt_x2, col = "red" )
+
+opt_y3 <- roc_qda$FPR[roc_qda$TPR - roc_qda$FPR== max(roc_qda$TPR - roc_qda$FPR)]
+opt_x3 <- roc_qda$TPR[roc_qda$TPR - roc_qda$FPR== max(roc_qda$TPR - roc_qda$FPR)]
+
+plot(roc_qda, main = "ROC Curve: QDA")
+abline(v = opt_y3, col = "red")
+abline(h = opt_x3, col = "red" )
+
+opt_y4 <- roc_rf$FPR[roc_rf$TPR - roc_rf$FPR== max(roc_rf$TPR - roc_rf$FPR)]
+opt_x4 <- roc_rf$TPR[roc_rf$TPR - roc_rf$FPR== max(roc_rf$TPR - roc_rf$FPR)]
+
+plot(roc_rf, main = "ROC Curve: Random Forest")
+abline(v = opt_y4, col = "red")
+abline(h = opt_x4, col = "red" )
+```
+
+```{r}
+# AOC OF EACH GRAPH
+roc_lr$AUC
+roc_lda$AUC
+roc_qda$AUC
+roc_rf$AUC
+
+# RETRIEVING CUTOFF VALUES
+roc_lr$Cutoff[roc_lr$TPR - roc_lr$FPR == max(roc_lr$TPR - roc_lr$FPR)]
+roc_lda$Cutoff[roc_lda$TPR - roc_lda$FPR == max(roc_lda$TPR - roc_lda$FPR)]
+roc_qda$Cutoff[roc_qda$TPR - roc_qda$FPR== max(roc_qda$TPR - roc_qda$FPR)]
+roc_rf$Cutoff[roc_rf$TPR - roc_rf$FPR== max(roc_rf$TPR - roc_rf$FPR)]
+```
+
+
+###**CUTOFF VALUES**  
+LR: 0.2381142  
+LDA: 0.2007537  
+QDA: 0.1081531  
+RF: 0.2833333  
+    
+##part c)   
+
+# SECTION 4   
+## MODEL DIAGNOSTICS 
+  
+##part a)  
+
+```{r}
+# ntree = 1
+time1 <- Sys.time()
+ntree1 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = binary_train, ntree = 1, nodesize = 19)
+
+pred1 <- predict(ntree1, binary_test)
+
+acc_1 <- sum(pred1 == binary_test$expert_label) / nrow(binary_test)
+
+# ntree = 3
+ntree3 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = binary_train, ntree = 3, nodesize = 19)
+
+pred3 <- predict(ntree3, binary_test)
+
+acc_3 <- sum(pred3 == binary_test$expert_label) / nrow(binary_test)
+
+# ntree = 5
+ntree5 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = binary_train, ntree = 5, nodesize = 19)
+
+pred5 <- predict(ntree5, binary_test)
+
+acc_5 <- sum(pred5 == binary_test$expert_label) / nrow(binary_test)
+
+# ntree = 10
+ntree10 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = binary_train, ntree = 10, nodesize = 19)
+
+pred10 <- predict(ntree10, binary_test)
+
+acc_10 <- sum(pred10 == binary_test$expert_label) / nrow(binary_test)
+
+# ntree = 20
+ntree20 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = binary_train, ntree = 20, nodesize = 19)
+
+pred20 <- predict(ntree20, binary_test)
+
+acc_20 <- sum(pred20 == binary_test$expert_label) / nrow(binary_test)
+
+# ntree = 50
+ntree50 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = binary_train, ntree = 50, nodesize = 19)
+
+pred50 <- predict(ntree50, binary_test)
+
+acc_50 <- sum(pred50 == binary_test$expert_label) / nrow(binary_test) 
+
+# ntree = 100
+ntree100 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = binary_train, ntree = 100, nodesize = 19)
+
+pred100 <- predict(ntree100, binary_test)
+
+acc_100 <- sum(pred100 == binary_test$expert_label) / nrow(binary_test)
+
+# ntree = 150
+
+ntree150 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = binary_train, ntree = 150, nodesize = 19)
+
+pred150 <- predict(ntree150, binary_test)
+
+acc_150 <- sum(pred150 == binary_test$expert_label) / nrow(binary_test)
+
+# ntree = 200
+
+ntree200 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = binary_train, ntree = 200, nodesize = 19)
+
+pred200 <- predict(ntree200, binary_test)
+
+acc_200 <- sum(pred200 == binary_test$expert_label) / nrow(binary_test)
+
+# ntree = 300
+
+ntree300 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = binary_train, ntree = 300, nodesize = 19)
+
+pred300 <- predict(ntree300, binary_test)
+
+acc_300 <- sum(pred300 == binary_test$expert_label) / nrow(binary_test)
+
+# ntree = 400
+
+ntree400 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = binary_train, ntree = 400, nodesize = 19)
+
+pred400 <- predict(ntree400, binary_test)
+
+acc_400 <- sum(pred400 == binary_test$expert_label) / nrow(binary_test)
+
+
+# ntree = 500
+
+ntree500 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = binary_train, ntree = 500, nodesize = 19)
+
+pred500 <- predict(ntree500, binary_test)
+
+acc_500 <- sum(pred500 == binary_test$expert_label) / nrow(binary_test)
+
+Sys.time() - time1
+
+ntree_acc <- c(acc_1, acc_3, acc_5, acc_10, acc_20, acc_50, acc_100, acc_150, acc_200, acc_300, acc_400, acc_500)
+
+ggplot() + geom_point(aes(x = c(1, 3, 5, 10, 20, 50, 100, 150, 200, 300, 400, 500), y = ntree_acc)) + geom_line(aes(x = c(1, 3, 5, 10, 20, 50, 100, 150, 200, 300, 400, 500) , y = ntree_acc), col = "blue") + geom_hline(yintercept = test_acc_rf, col = "red") + labs(x = "ntree size", y = "accuracy", title = "convergence of RF by tree size")
+```
+
+
+```{r}
+head(getTree(rf_model, 1, labelVar=TRUE))
+
+probabilities <- probs_rf[,2]
+
+ggplot() + geom_point(aes(x = binary_test$NDAI, y = binary_test$CORR, col = preds_rf)) + geom_vline(xintercept =  0.3648835, col = "red") + labs(title = "tree 1", x = "NDAI", y = "CORR")
+```
+
+```{r}
+pca <- prcomp(binary_test[,c(4,5,6)], scale. = TRUE)
+
+rf_correct <- preds_rf == binary_test$expert_label
+
+plot_frame <- data.frame(
+  x = pca$x[,1],
+  y = pca$x[,2],
+  expert_label = factor(binary_test$expert_label),
+  preds = factor(preds_rf)
+)
+
+ggplot(plot_frame, aes(x = x, y = y)) + geom_point(aes(color = preds), size = 0.3) + stat_ellipse(geom = "polygon", alpha = 0.1, aes(color = "boundary", fill = preds)) + labs(title = "PCA analysis", caption ="color coded by predicted classes")
+
+eigenvalues <- pca$sdev^2
+
+eig_cumsum <- cumsum(eigenvalues)/sum(eigenvalues)
+
+ggplot() + geom_point(aes(x = 1:4, y = c(0, eig_cumsum))) +
+  labs(x = "principal components", y = "proportion of total variance explained") + geom_line(aes(x = c(1:4), y = c(0, eig_cumsum)))
+
+```
+
+
+## part b)
+
+```{r}
+b1_preds <- predict(rf_model, binary1)
+b1_correct <- 1*(b1_preds == binary1$expert_label)
+
+b2_preds <- predict(rf_model, binary2)
+b2_correct <- 1*(b2_preds == binary2$expert_label)
+
+b3_preds <- predict(rf_model, binary3)
+b3_correct <- 1*(b3_preds == binary3$expert_label)
+
+ggplot() + geom_point(aes(x = binary1$x_coordinate, y = binary1$y_coordinate, col = factor(b1_correct)), shape = "c") + labs(title = "random forest performance: image1", caption = "color-coded by classification error") + ylab('y') + xlab('x')
+
+ggplot() + geom_point(aes(x = binary1$x_coordinate, y = binary1$y_coordinate, col = factor(b1_correct)), shape = "c") + labs(title = "random forest performance: image2", caption = "color-coded by classification error") + ylab('y') + xlab('x')
+
+ggplot() + geom_point(aes(x = binary1$x_coordinate, y = binary1$y_coordinate, col = factor(b1_correct)), shape = "c") + labs(title = "random forest performance: image3", caption = "color-coded by classification error") + ylab('y') + xlab('x')
+```
+
+
+```{r}
+all_preds <- predict(rf_model, all_binary)
+full_incorrect <- all_preds != all_binary$expert_label
+
+all_binary$incorrect <- full_incorrect
+
+table(all_binary[all_binary$incorrect == 1, 3])/sum(full_incorrect)
+```
+
+##part c)  
+
+```{r}
+pca_df <- rbind(binary_train, binary_test)
+prcomp <- prcomp(pca_df[, c(4:6)], scale = T)
+summary_prcomp <- summary(prcomp)
+summary_prcomp$importance[3,] 
+```
+
+```{r}
+ggplot() + geom_line(aes(x = c(1,2,3), y = summary_prcomp$importance[3,])) + labs(x = "principal components", y = "% variance", title = "proportion of variance explained") + geom_hline(yintercept = 0.85, col = "red")
+```
+
+```{r}
+# pc scores for pc1 and pc2
+pc12 <- as.data.frame(cbind(prcomp$x[,1], prcomp$x[,2]))
+names(pc12) <- c("pc1", "pc2")
+```
+
+```{r}
+pca_transformed <- cbind(pc12, pca_df$expert_label)
+names(pca_transformed)[3] <- "expert_label"
+```
+
+```{r}
+training_index <- 1:nrow(binary_train)
+pca_training <- pca_transformed[training_index,]
+pca_test <- pca_transformed[-training_index, ]
+
+# pca models
+pca_lda <- lda(expert_label~pc1+pc2, data = pca_training)
+pca_qda <- qda(expert_label~pc1+pc2, data = pca_training)
+pca_lr <- glm(expert_label~pc1+pc2, data = pca_training, family = "binomial")
+pca_rf <- randomForest(factor(expert_label) ~ pc1 + pc2, data = pca_training, ntree = 300, nodesize = 19)
+```
+
+```{r}
+# pca lda accuracy
+pca_lda_predict <- predict(pca_lda, pca_test)
+mean(pca_lda_predict$class == pca_test$expert_label)
+```
+
+```{r}
+# pca qda accuracy
+pca_qda_predict <- predict(pca_qda, pca_test)
+mean(pca_qda_predict$class == pca_test$expert_label)
+```
+
+```{r}
+# pca lr accuracy leave for later
+pca_lr_predict <- predict(pca_lda, pca_test)
+mean(pca_lr_predict$class == pca_test$expert_label)
+```
+
+```{r}
+# pca rf accuracy
+pca_rf_predict <- predict(pca_rf, pca_test)
+mean(pca_rf_predict == pca_test$expert_label)
+```
+
+```{r}
+prcomp2 <- prcomp(pca_df[, c(4:6)], scale = T)
+
+summary_prcomp2 <- summary(prcomp2)
+summary_prcomp2$importance[3,] 
+```
+The first 3 PCs capture 94% of the variation. 
+
+```{r}
+pc12 <- as.data.frame(cbind(prcomp$x[,1], prcomp$x[,2]))
+names(pc12) <- c("pc1", "pc2")
+
+pc123 <- as.data.frame(cbind(prcomp2$x[,1], prcomp2$x[,2], prcomp2$x[,3], pca_df$expert_label))
+names(pc123) <- c(paste0("pc", 1:3), "expert_label")
+```
+
+```{r}
+pca_training2 <- pc123[training_index,]
+pca_test2 <- pc123[-training_index, ]
+```
+
+
+```{r}
+pca_rf2 <- randomForest(factor(expert_label) ~ pc1 + pc2 + pc3, data = pca_training2, ntree = 300, nodesize = 19)
+
+# pca rf accuracy
+pca_rf2_predict <- predict(pca_rf2, pca_test2)
+mean(pca_rf2_predict == pca_test$expert_label)
+```
+
+##part d)
+
+```{r}
+# BOOTSTRAP SAMPLE TRAINING DATA 5 TIMES
+set.seed(777)
+index1 <- sample(c(1:nrow(binary_train)), nrow(binary_train), replace = TRUE)
+index2 <- sample(c(1:nrow(binary_train)), nrow(binary_train), replace = TRUE)
+index3 <- sample(c(1:nrow(binary_train)), nrow(binary_train), replace = TRUE)
+index4 <- sample(c(1:nrow(binary_train)), nrow(binary_train), replace = TRUE)
+index5 <- sample(c(1:nrow(binary_train)), nrow(binary_train), replace = TRUE)
+
+bootstrap1 <- binary_train[index1, ]
+bootstrap2 <- binary_train[index2, ]
+bootstrap3 <- binary_train[index3, ]
+bootstrap4 <- binary_train[index4, ]
+bootstrap5 <- binary_train[index5, ]
+
+retrain1 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = bootstrap1, ntree = 300, nodesize = 19)
+
+retrain2 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = bootstrap2, ntree = 300, nodesize = 19)
+
+retrain3 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = bootstrap3, ntree = 300, nodesize = 19)
+
+retrain4 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = bootstrap4, ntree = 300, nodesize = 19)
+
+retrain5 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = bootstrap5, ntree = 300, nodesize = 19)
+
+pred1 <- predict(retrain1, binary_test)
+pred2 <- predict(retrain2, binary_test)
+pred3 <- predict(retrain3, binary_test)
+pred4 <- predict(retrain4, binary_test)
+pred5 <- predict(retrain5, binary_test)
+
+retrain_acc1 <- sum(pred1 == binary_test$expert_label)/nrow(binary_test)
+retrain_acc2 <- sum(pred2 == binary_test$expert_label)/nrow(binary_test)
+retrain_acc3 <- sum(pred3 == binary_test$expert_label)/nrow(binary_test)
+retrain_acc4 <- sum(pred4 == binary_test$expert_label)/nrow(binary_test)
+retrain_acc5 <- sum(pred5 == binary_test$expert_label)/nrow(binary_test)
+
+c(retrain_acc1, retrain_acc2, retrain_acc3, retrain_acc4, retrain_acc5)
+```
+
+```{r}
+# MAKE TWO SMALLER TRAINING SETS
+set.seed(777)
+small_index <- sample(c(1:nrow(binary_train)), floor(nrow(binary_train)/2), replace = FALSE)
+
+small_train <- binary_train[small_index, ]
+small_train2 <- binary_train[-small_index, ]
+
+small_retrain <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = small_train, ntree = 300, nodesize = 19)
+
+small_retrain2 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = small_train2, ntree = 300, nodesize = 19)
+
+small_pred1 <- predict(small_retrain, binary_test)
+small_pred2 <- predict(small_retrain2, binary_test)
+
+small_acc1 <- sum(small_pred1 == binary_test$expert_label) / nrow(binary_test)
+small_acc2 <- sum(small_pred2 == binary_test$expert_label) / nrow(binary_test)
+
+c(small_acc1, small_acc2) 
+```
+
+
+```{r}
+# TWO SMALLER BOOTSTRAPPED TRAINING SETS
+set.seed(777)
+small_index1 <- sample(c(1:nrow(binary_train)), 100000, replace = TRUE)
+small_index2 <- sample(c(1:nrow(binary_train)), 100000, replace = TRUE)
+
+small_boot <- binary_train[small_index1, ]
+small_boot2 <- binary_train[small_index2, ]
+
+small_boot_retrain <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = small_boot, ntree = 300, nodesize = 19)
+
+small_boot_retrain2 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = small_boot2, ntree = 300, nodesize = 19)
+
+small_bpred1 <- predict(small_boot_retrain, binary_test)
+small_bpred2 <- predict(small_boot_retrain2, binary_test)
+
+smallb_acc1 <- sum(small_bpred1 == binary_test$expert_label) / nrow(binary_test)
+smallb_acc2 <- sum(small_bpred2 == binary_test$expert_label) / nrow(binary_test)
+
+c(smallb_acc1, smallb_acc2) 
+```
+
+```{r}
+# the other 5 permutations to split data using 1st split method
+ptrain1 <- binary3
+ptrain2 <- binary3
+ptrain3 <- binary2
+ptrain4 <- binary2
+ptrain5 <- binary1
+
+ptest1 <- binary2
+ptest2 <- binary1
+ptest3 <- binary1
+ptest4 <- binary3
+ptest5 <- binary3
+
+pvalid1 <- binary1
+pvalid2 <- binary2
+pvalid3 <- binary3
+pvalid4 <- binary1
+pvalid5 <- binary2
+```
+
+```{r}
+p_model1 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = ptrain1, ntree = 300, nodesize = 19)
+
+p_model2 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = ptrain1, ntree = 300, nodesize = 19)
+
+p_model3 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = ptrain1, ntree = 300, nodesize = 19)
+
+p_model4 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = ptrain1, ntree = 300, nodesize = 19)
+
+p_model5 <- randomForest(factor(expert_label) ~ NDAI + SD + CORR, data = ptrain1, ntree = 300, nodesize = 19)
+```
+
+```{r}
+p_acc1 <- mean(predict(p_model1, binary_test) == binary_test$expert_label)
+p_acc2 <- mean(predict(p_model2, binary_test) == binary_test$expert_label)
+p_acc3 <- mean(predict(p_model3, binary_test) == binary_test$expert_label)
+p_acc4 <- mean(predict(p_model4, binary_test) == binary_test$expert_label)
+p_acc5 <- mean(predict(p_model5, binary_test) == binary_test$expert_label)
+
+c(p_acc1, p_acc2, p_acc3, p_acc4, p_acc5)
+```
+
+##part e)    
+**CONCLUSION**  
+random forest performed the best.
+
+
+
